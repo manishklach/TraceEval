@@ -26,7 +26,7 @@ function severityTone(level) {
 }
 
 function statusTone(status) {
-  if (status === 'healthy' || status === 'published' || status === 'improved') return 'good';
+  if (status === 'healthy' || status === 'published' || status === 'improved' || status === 'completed') return 'good';
   if (status === 'lagging' || status === 'triage' || status === 'generating_eval' || status === 'draft' || status === 'watch') return 'warn';
   if (status === 'critical' || status === 'regressed' || status === 'failed') return 'danger';
   return 'neutral';
@@ -41,12 +41,13 @@ async function loadDashboard() {
 
   const stats = [
     metricCard('Traces ingested', data.pipelineSummary.total_traces, 'neutral'),
+    metricCard('Accepted rows', data.pipelineSummary.accepted_ingests, 'good'),
+    metricCard('Deduped rows', data.pipelineSummary.deduped_ingests, 'warn'),
     metricCard('Active clusters', data.pipelineSummary.active_clusters, 'danger'),
     metricCard('Export-ready cases', data.pipelineSummary.export_ready_cases, 'good'),
     metricCard('Coverage', `${data.pipelineSummary.case_export_coverage}%`, 'warn'),
     metricCard('Healthy sources', data.pipelineSummary.healthy_sources, 'good'),
-    metricCard('Regressions found', data.pipelineSummary.regressions_detected, 'danger'),
-    metricCard('Improvements kept', data.pipelineSummary.improvements_captured, 'good')
+    metricCard('Regressions found', data.pipelineSummary.regressions_detected, 'danger')
   ];
   document.getElementById('stats').innerHTML = stats.join('');
 
@@ -63,6 +64,18 @@ async function loadDashboard() {
         <strong>${source.freshness_minutes}m</strong><span>freshness lag</span>
       </div>
       <p class="muted">Last ingest ${formatTimestamp(source.last_ingest_at)}</p>
+    </article>
+  `).join('');
+
+  document.getElementById('ingestList').innerHTML = data.recentIngests.map((batch) => `
+    <article class="stack-card">
+      <div class="card-head">
+        <h3>${batch.source_name}</h3>
+        ${badge(batch.status, statusTone(batch.status))}
+      </div>
+      <p>${batch.kind}</p>
+      <p class="muted">${batch.accepted_count} accepted · ${batch.deduped_count} deduped</p>
+      <p class="muted">Received ${formatTimestamp(batch.received_at)}</p>
     </article>
   `).join('');
 

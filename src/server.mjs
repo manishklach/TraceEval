@@ -2,7 +2,14 @@ import { createServer } from 'node:http';
 import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { getDashboardSnapshot, getPromptfooExport, getSampleRows, initSchema, openDb } from './db.mjs';
+import {
+  getDashboardSnapshot,
+  getPromptfooExport,
+  getSampleRows,
+  ingestSourceEvents,
+  initSchema,
+  openDb
+} from './db.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -30,50 +37,102 @@ function serveFile(response, relativePath, contentType) {
   response.end(readFileSync(filePath));
 }
 
+function readJsonBody(request) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    request.setEncoding('utf8');
+
+    request.on('data', (chunk) => {
+      body += chunk;
+      if (body.length > 1024 * 1024) {
+        reject(new Error('Request body too large'));
+        request.destroy();
+      }
+    });
+
+    request.on('end', () => {
+      if (!body) {
+        resolve({});
+        return;
+      }
+
+      try {
+        resolve(JSON.parse(body));
+      } catch {
+        reject(new Error('Invalid JSON body'));
+      }
+    });
+
+    request.on('error', reject);
+  });
+}
+
 export function buildApp() {
   const db = openDb();
   initSchema(db);
 
-  return createServer((request, response) => {
+  const server = createServer(async (request, response) => {
     const url = new URL(request.url, 'http://localhost');
 
-    if (url.pathname === '/api/health') {
-      json(response, 200, { ok: true, service: 'traceeval' });
-      return;
-    }
+    try {
+      if (request.method === 'GET' && url.pathname === '/api/health') {
+        json(response, 200, { ok: true, service: 'traceeval' });
+        return;
+      }
 
-    if (url.pathname === '/api/dashboard') {
-      json(response, 200, getDashboardSnapshot(db));
-      return;
-    }
+      if (request.method === 'GET' && url.pathname === '/api/dashboard') {
+        json(response, 200, getDashboardSnapshot(db));
+        return;
+      }
 
-    if (url.pathname === '/api/sample-db') {
-      json(response, 200, getSampleRows(db));
-      return;
-    }
+      if (request.method === 'GET' && url.pathname === '/api/sample-db') {
+        json(response, 200, getSampleRows(db));
+        return;
+      }
 
-    if (url.pathname === '/api/promptfoo-export') {
-      text(response, 200, getPromptfooExport(db), 'text/yaml; charset=utf-8');
-      return;
-    }
+      if (request.method === 'GET' && url.pathname === '/api/promptfoo-export') {
+        text(response, 200, getPromptfooExport(db), 'text/yaml; charset=utf-8');
+        return;
+      }
 
-    if (url.pathname === '/app.js') {
-      serveFile(response, 'app.js', 'application/javascript; charset=utf-8');
-      return;
-    }
+      if (request.method === 'POST' && url.pathname === '/api/ingest/source-events') {
+        const payload = await readJsonBody(request);
+        if (!payload.source || !Array.isArray(payload.events)) {
+          json(response, 400, { error: 'Body must include source and events[]' });
+          return;
+        }
 
-    if (url.pathname === '/styles.css') {
-      serveFile(response, 'styles.css', 'text/css; charset=utf-8');
-      return;
-    }
+        const result = ingestSourceEvents(db, payload);
+        json(response, 202, result);
+        return;
+      }
 
-    if (url.pathname === '/' || url.pathname === '/index.html') {
-      serveFile(response, 'index.html', 'text/html; charset=utf-8');
-      return;
-    }
+      if (request.method === 'GET' && url.pathname === '/app.js') {
+        serveFile(response, 'app.js', 'application/javascript; charset=utf-8');
+        return;
+      }
 
-    text(response, 404, 'Not found');
+      if (request.method === 'GET' && url.pathname === '/styles.css') {
+        serveFile(response, 'styles.css', 'text/css; charset=utf-8');
+        return;
+      }
+
+      if (request.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
+        serveFile(response, 'index.html', 'text/html; charset=utf-8');
+        return;
+      }
+
+      text(response, 404, 'Not found');
+    } catch (error) {
+      json(response, 500, { error: error.message });
+    }
   });
+
+  server.on('close', () => {
+    db.close();
+  });
+
+  return server;
 }
 
 export function startServer({ port = 3000 } = {}) {

@@ -10,13 +10,34 @@ const sourceFeeds = [
   ['src-zendesk', 'Zendesk escalations', 'ticketing', 'lagging', 'cx-ops', 73, '2026-03-09T16:22:00Z', 40]
 ];
 
+const ingestBatches = [
+  ['ingest-seed-01', 'src-intercom', 'Intercom conversations', 2, 0, 'completed', '2026-03-09T16:10:00Z', '2026-03-09T16:10:08Z'],
+  ['ingest-seed-02', 'src-langfuse', 'Langfuse traces', 3, 1, 'completed', '2026-03-09T16:25:00Z', '2026-03-09T16:25:05Z'],
+  ['ingest-seed-03', 'src-zendesk', 'Zendesk escalations', 1, 0, 'completed', '2026-03-09T16:45:00Z', '2026-03-09T16:45:03Z']
+];
+
 const traceEvents = [
-  ['trace-01', 'src-intercom', 'conv-8841', 'user_thumb_down', 'critical', 'gpt-5-mini', 'refund_lookup -> policy_lookup -> hallucinates exception path', 'refund after duplicate charge', 'Agent promised an exception path that policy does not allow and created a support escalation.', '2026-03-09T15:21:00Z'],
-  ['trace-02', 'src-langfuse', 'conv-8842', 'tool_error', 'high', 'gpt-5-mini', 'shipment_lookup timed out twice before fallback response', 'late shipment claim', 'Agent failed to acknowledge unavailable shipment API and kept retrying without a user-facing fallback.', '2026-03-09T15:48:00Z'],
-  ['trace-03', 'src-intercom', 'conv-8843', 'human_handoff', 'high', 'gpt-5', 'policy_lookup -> order_lookup -> contradictory summary', 'subscription cancellation', 'Agent mixed annual and monthly cancellation windows, causing human takeover.', '2026-03-09T16:01:00Z'],
-  ['trace-04', 'src-zendesk', 'conv-8844', 'sla_breach', 'medium', 'gpt-5-mini', 'kb_search returned stale article', 'change billing email', 'Agent cited an obsolete help-center article and did not recover when user challenged the answer.', '2026-03-09T14:54:00Z'],
-  ['trace-05', 'src-langfuse', 'conv-8845', 'user_thumb_down', 'critical', 'gpt-5', 'order_lookup -> refund_lookup -> unsupported country branch', 'VAT refund question', 'Agent invented a country-specific VAT refund route with no backing tool or policy citation.', '2026-03-09T16:11:00Z'],
-  ['trace-06', 'src-intercom', 'conv-8846', 'human_handoff', 'medium', 'gpt-5-mini', 'kb_search -> profile_update -> authentication fallback missing', 'update phone number', 'Agent could not complete identity verification fallback and left the user in a loop.', '2026-03-09T16:33:00Z']
+  ['trace-01', 'src-intercom', 'evt-1001', 'conv-8841', 'user_thumb_down', 'critical', 'gpt-5-mini', 'refund_lookup -> policy_lookup -> hallucinates exception path', 'refund after duplicate charge', 'Agent promised an exception path that policy does not allow and created a support escalation.', '2026-03-09T15:21:00Z', '{"environment":"prod","workspace":"support-agent"}'],
+  ['trace-02', 'src-langfuse', 'evt-2001', 'conv-8842', 'tool_error', 'high', 'gpt-5-mini', 'shipment_lookup timed out twice before fallback response', 'late shipment claim', 'Agent failed to acknowledge unavailable shipment API and kept retrying without a user-facing fallback.', '2026-03-09T15:48:00Z', '{"environment":"prod","workspace":"support-agent"}'],
+  ['trace-03', 'src-intercom', 'evt-1002', 'conv-8843', 'human_handoff', 'high', 'gpt-5', 'policy_lookup -> order_lookup -> contradictory summary', 'subscription cancellation', 'Agent mixed annual and monthly cancellation windows, causing human takeover.', '2026-03-09T16:01:00Z', '{"environment":"prod","workspace":"support-agent"}'],
+  ['trace-04', 'src-zendesk', 'evt-3001', 'conv-8844', 'sla_breach', 'medium', 'gpt-5-mini', 'kb_search returned stale article', 'change billing email', 'Agent cited an obsolete help-center article and did not recover when user challenged the answer.', '2026-03-09T14:54:00Z', '{"environment":"prod","workspace":"billing-agent"}'],
+  ['trace-05', 'src-langfuse', 'evt-2002', 'conv-8845', 'user_thumb_down', 'critical', 'gpt-5', 'order_lookup -> refund_lookup -> unsupported country branch', 'VAT refund question', 'Agent invented a country-specific VAT refund route with no backing tool or policy citation.', '2026-03-09T16:11:00Z', '{"environment":"prod","workspace":"support-agent"}'],
+  ['trace-06', 'src-intercom', 'evt-1003', 'conv-8846', 'human_handoff', 'medium', 'gpt-5-mini', 'kb_search -> profile_update -> authentication fallback missing', 'update phone number', 'Agent could not complete identity verification fallback and left the user in a loop.', '2026-03-09T16:33:00Z', '{"environment":"prod","workspace":"profile-agent"}']
+];
+
+const traceArtifacts = [
+  ['artifact-trace-01-raw', 'trace-01', 'raw', '{"customerEmail":"refund@example.com","transcriptExcerpt":"Agent promised an exception path that policy does not allow and created a support escalation."}', 'pending', '2026-03-09T16:10:00Z'],
+  ['artifact-trace-01-redacted', 'trace-01', 'redacted', '{"customerEmail":"[redacted-email]","transcriptExcerpt":"Agent promised an exception path that policy does not allow and created a support escalation."}', 'complete', '2026-03-09T16:10:00Z'],
+  ['artifact-trace-02-raw', 'trace-02', 'raw', '{"ticket":"order-7721","toolTrace":"shipment_lookup timed out twice before fallback response"}', 'pending', '2026-03-09T16:25:00Z'],
+  ['artifact-trace-02-redacted', 'trace-02', 'redacted', '{"ticket":"order-[redacted-id]","toolTrace":"shipment_lookup timed out twice before fallback response"}', 'complete', '2026-03-09T16:25:00Z'],
+  ['artifact-trace-03-raw', 'trace-03', 'raw', '{"transcriptExcerpt":"Agent mixed annual and monthly cancellation windows, causing human takeover."}', 'pending', '2026-03-09T16:10:00Z'],
+  ['artifact-trace-03-redacted', 'trace-03', 'redacted', '{"transcriptExcerpt":"Agent mixed annual and monthly cancellation windows, causing human takeover."}', 'complete', '2026-03-09T16:10:00Z'],
+  ['artifact-trace-04-raw', 'trace-04', 'raw', '{"customerEmail":"billing@example.com","transcriptExcerpt":"Agent cited an obsolete help-center article and did not recover when user challenged the answer."}', 'pending', '2026-03-09T16:45:00Z'],
+  ['artifact-trace-04-redacted', 'trace-04', 'redacted', '{"customerEmail":"[redacted-email]","transcriptExcerpt":"Agent cited an obsolete help-center article and did not recover when user challenged the answer."}', 'complete', '2026-03-09T16:45:00Z'],
+  ['artifact-trace-05-raw', 'trace-05', 'raw', '{"ticket":"invoice-4419","transcriptExcerpt":"Agent invented a country-specific VAT refund route with no backing tool or policy citation."}', 'pending', '2026-03-09T16:25:00Z'],
+  ['artifact-trace-05-redacted', 'trace-05', 'redacted', '{"ticket":"invoice-[redacted-id]","transcriptExcerpt":"Agent invented a country-specific VAT refund route with no backing tool or policy citation."}', 'complete', '2026-03-09T16:25:00Z'],
+  ['artifact-trace-06-raw', 'trace-06', 'raw', '{"customerPhone":"555 212 7788","transcriptExcerpt":"Agent could not complete identity verification fallback and left the user in a loop."}', 'pending', '2026-03-09T16:10:00Z'],
+  ['artifact-trace-06-redacted', 'trace-06', 'redacted', '{"customerPhone":"[redacted-number]","transcriptExcerpt":"Agent could not complete identity verification fallback and left the user in a loop."}', 'complete', '2026-03-09T16:10:00Z']
 ];
 
 const failureClusters = [
@@ -68,49 +89,15 @@ const insertMany = (sql, rows) => {
   }
 };
 
-insertMany(
-  'INSERT INTO source_feeds (id, name, kind, status, owner, records_24h, last_ingest_at, freshness_minutes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-  sourceFeeds
-);
+insertMany('INSERT INTO source_feeds (id, name, kind, status, owner, records_24h, last_ingest_at, freshness_minutes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', sourceFeeds);
+insertMany('INSERT INTO ingest_batches (id, source_feed_id, source_name, accepted_count, deduped_count, status, received_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', ingestBatches);
+insertMany(`INSERT INTO trace_events (id, source_feed_id, external_event_id, conversation_id, failure_signal, severity, model_name, tool_trace, user_intent, transcript_excerpt, happened_at, metadata_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, traceEvents);
+insertMany(`INSERT INTO trace_artifacts (id, trace_event_id, artifact_type, payload, redaction_status, created_at) VALUES (?, ?, ?, ?, ?, ?)`, traceArtifacts);
+insertMany(`INSERT INTO failure_clusters (id, title, status, severity, trace_count, confidence_score, root_cause_hypothesis, owner, first_seen_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, failureClusters);
+insertMany('INSERT INTO cluster_traces (cluster_id, trace_event_id) VALUES (?, ?)', clusterTraces);
+insertMany(`INSERT INTO eval_cases (id, cluster_id, name, priority, assertion_type, promptfoo_ready, expected_behavior, generated_from, owner, last_exported_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, evalCases);
+insertMany(`INSERT INTO replay_runs (id, eval_case_id, baseline_version, candidate_version, verdict, regressions_found, improvements_found, executed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, replayRuns);
+insertMany(`INSERT INTO export_batches (id, target_system, target_path, case_count, status, created_at) VALUES (?, ?, ?, ?, ?, ?)`, exportBatches);
 
-insertMany(
-  `INSERT INTO trace_events
-   (id, source_feed_id, conversation_id, failure_signal, severity, model_name, tool_trace, user_intent, transcript_excerpt, happened_at)
-   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  traceEvents
-);
-
-insertMany(
-  `INSERT INTO failure_clusters
-   (id, title, status, severity, trace_count, confidence_score, root_cause_hypothesis, owner, first_seen_at, last_seen_at)
-   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  failureClusters
-);
-
-insertMany(
-  'INSERT INTO cluster_traces (cluster_id, trace_event_id) VALUES (?, ?)',
-  clusterTraces
-);
-
-insertMany(
-  `INSERT INTO eval_cases
-   (id, cluster_id, name, priority, assertion_type, promptfoo_ready, expected_behavior, generated_from, owner, last_exported_at)
-   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  evalCases
-);
-
-insertMany(
-  `INSERT INTO replay_runs
-   (id, eval_case_id, baseline_version, candidate_version, verdict, regressions_found, improvements_found, executed_at)
-   VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-  replayRuns
-);
-
-insertMany(
-  `INSERT INTO export_batches
-   (id, target_system, target_path, case_count, status, created_at)
-   VALUES (?, ?, ?, ?, ?, ?)`,
-  exportBatches
-);
-
-console.log(`Seeded ${traceEvents.length} traces, ${failureClusters.length} clusters, and ${evalCases.length} eval cases into data/monitor.db`);
+console.log(`Seeded ${traceEvents.length} traces, ${ingestBatches.length} ingest batches, and ${evalCases.length} eval cases into data/monitor.db`);
+db.close();

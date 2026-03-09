@@ -27,8 +27,8 @@
             <strong>Continuous eval discovery</strong>
           </div>
           <div class="hero-card code-card">
-            <span>Export target</span>
-            <strong>/api/promptfoo-export</strong>
+            <span>Ingest API</span>
+            <strong>POST /api/ingest/source-events</strong>
           </div>
         </div>
       </section>
@@ -46,10 +46,28 @@
 
         <section class="panel">
           <div class="panel-header">
+            <h2>Recent ingest batches</h2>
+            <p>Normalization, dedupe, and redaction pipeline</p>
+          </div>
+          <div id="ingestList" class="stack-list"></div>
+        </section>
+      </section>
+
+      <section class="layout two-up">
+        <section class="panel">
+          <div class="panel-header">
             <h2>Replay runs</h2>
             <p>Regression bisection across prompt versions</p>
           </div>
           <div id="replayList" class="stack-list"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Promptfoo export</h2>
+            <p>Draft YAML generated from trace-derived cases</p>
+          </div>
+          <pre id="exportPreview" class="code-block short"></pre>
         </section>
       </section>
 
@@ -60,14 +78,6 @@
             <p>Root-cause buckets ready for canonicalization</p>
           </div>
           <div id="clusterCards" class="cluster-grid"></div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-header">
-            <h2>Promptfoo export</h2>
-            <p>Draft YAML generated from trace-derived cases</p>
-          </div>
-          <pre id="exportPreview" class="code-block"></pre>
         </section>
       </section>
 
