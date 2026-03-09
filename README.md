@@ -1,4 +1,4 @@
-# TraveEval
+# TraceEval
 
 A git-ready prototype for a product that complements [promptfoo](https://github.com/promptfoo/promptfoo) instead of competing head-on with its core evaluation engine.
 

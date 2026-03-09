@@ -38,7 +38,7 @@ export function buildApp() {
     const url = new URL(request.url, 'http://localhost');
 
     if (url.pathname === '/api/health') {
-      json(response, 200, { ok: true, service: 'traveeval' });
+      json(response, 200, { ok: true, service: 'traceeval' });
       return;
     }
 
@@ -86,5 +86,5 @@ export function startServer({ port = 3000 } = {}) {
 if (process.argv[1] === __filename) {
   const port = Number(process.env.PORT || '3000');
   const server = await startServer({ port });
-  console.log(`TraveEval listening on http://localhost:${server.address().port}`);
+  console.log(`TraceEval listening on http://localhost:${server.address().port}`);
 }
