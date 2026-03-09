@@ -23,12 +23,12 @@
             <strong id="generatedAt">-</strong>
           </div>
           <div class="hero-card">
-            <span>North star</span>
-            <strong>Continuous eval discovery</strong>
+            <span>Triage APIs</span>
+            <strong>POST /api/clusters/:id/recompute</strong>
           </div>
           <div class="hero-card code-card">
-            <span>Ingest API</span>
-            <strong>POST /api/ingest/source-events</strong>
+            <span>Assign owner</span>
+            <strong>POST /api/clusters/:id/assign-owner</strong>
           </div>
         </div>
       </section>
@@ -56,10 +56,10 @@
       <section class="layout two-up">
         <section class="panel">
           <div class="panel-header">
-            <h2>Replay runs</h2>
-            <p>Regression bisection across prompt versions</p>
+            <h2>Cluster activity</h2>
+            <p>Recompute runs and triage changes</p>
           </div>
-          <div id="replayList" class="stack-list"></div>
+          <div id="clusterActivityList" class="stack-list"></div>
         </section>
 
         <section class="panel">
@@ -75,9 +75,27 @@
         <section class="panel span-two">
           <div class="panel-header">
             <h2>Failure clusters</h2>
-            <p>Root-cause buckets ready for canonicalization</p>
+            <p>Root-cause buckets ready for triage and canonicalization</p>
           </div>
           <div id="clusterCards" class="cluster-grid"></div>
+        </section>
+      </section>
+
+      <section class="layout two-up">
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Replay runs</h2>
+            <p>Regression bisection across prompt versions</p>
+          </div>
+          <div id="replayList" class="stack-list"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Export history</h2>
+            <p>How discovered cases flow into promptfoo packs</p>
+          </div>
+          <div id="exportList" class="stack-list exports"></div>
         </section>
       </section>
 
@@ -101,14 +119,6 @@
             <tbody id="evalCasesTable"></tbody>
           </table>
         </div>
-      </section>
-
-      <section class="panel">
-        <div class="panel-header">
-          <h2>Export history</h2>
-          <p>How discovered cases flow into promptfoo packs</p>
-        </div>
-        <div id="exportList" class="stack-list exports"></div>
       </section>
     </main>
     <script type="module" src="/app.js"></script>

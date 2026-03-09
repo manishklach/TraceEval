@@ -41,18 +41,25 @@ const traceArtifacts = [
 ];
 
 const failureClusters = [
-  ['cluster-01', 'Policy hallucinations in refund flows', 'triage', 'critical', 2, 0.94, 'Prompt is not requiring policy citation before refund exceptions are stated.', 'ml-platform', '2026-03-09T15:21:00Z', '2026-03-09T16:11:00Z'],
-  ['cluster-02', 'Tool timeout handling for shipment support', 'generating_eval', 'high', 2, 0.88, 'Agent loop retries the shipment tool instead of switching to fallback messaging after timeout budget is exhausted.', 'support-eng', '2026-03-09T15:48:00Z', '2026-03-09T16:33:00Z'],
-  ['cluster-03', 'Outdated help-center retrieval', 'watch', 'medium', 2, 0.76, 'Retriever ranking favors older billing articles and lacks freshness weighting.', 'cx-ops', '2026-03-09T14:54:00Z', '2026-03-09T16:01:00Z']
+  ['cluster-01', 'Policy hallucinations in refund flows', 'triage', 'critical', 2, 0.94, 'Prompt is not requiring policy citation before refund exceptions are stated.', 'ml-platform', '2026-03-09T15:21:00Z', '2026-03-09T16:11:00Z', 'High-priority finance workflow.', '2026-03-09T16:12:00Z'],
+  ['cluster-02', 'Tool timeout handling for shipment support', 'reviewing', 'high', 2, 0.88, 'Agent loop retries the shipment tool instead of switching to fallback messaging after timeout budget is exhausted.', 'support-eng', '2026-03-09T15:48:00Z', '2026-03-09T16:33:00Z', 'Needs retry-budget policy.', '2026-03-09T16:34:00Z'],
+  ['cluster-03', 'Outdated help-center retrieval', 'watch', 'medium', 2, 0.76, 'Retriever ranking favors older billing articles and lacks freshness weighting.', 'cx-ops', '2026-03-09T14:54:00Z', '2026-03-09T16:01:00Z', 'Watching for billing article freshness.', '2026-03-09T16:02:00Z']
+];
+
+const clusterLabels = [
+  ['label-01', 'cluster-01', 'root_cause', 'policy_hallucination', 0.94, 'seed', '2026-03-09T16:12:00Z'],
+  ['label-02', 'cluster-02', 'root_cause', 'tool_timeout', 0.88, 'seed', '2026-03-09T16:34:00Z'],
+  ['label-03', 'cluster-03', 'root_cause', 'retrieval_staleness', 0.76, 'seed', '2026-03-09T16:02:00Z']
+];
+
+const clusterRecomputeRuns = [
+  ['recompute-01', 'cluster-01', 'rules-v1', 'completed', 2, 'Seeded recompute for refund policy incidents.', '2026-03-09T16:12:00Z'],
+  ['recompute-02', 'cluster-02', 'rules-v1', 'completed', 2, 'Seeded recompute for shipment tool timeout incidents.', '2026-03-09T16:34:00Z'],
+  ['recompute-03', 'cluster-03', 'rules-v1', 'completed', 2, 'Seeded recompute for stale retrieval incidents.', '2026-03-09T16:02:00Z']
 ];
 
 const clusterTraces = [
-  ['cluster-01', 'trace-01'],
-  ['cluster-01', 'trace-05'],
-  ['cluster-02', 'trace-02'],
-  ['cluster-02', 'trace-06'],
-  ['cluster-03', 'trace-03'],
-  ['cluster-03', 'trace-04']
+  ['cluster-01', 'trace-01'], ['cluster-01', 'trace-05'], ['cluster-02', 'trace-02'], ['cluster-02', 'trace-06'], ['cluster-03', 'trace-03'], ['cluster-03', 'trace-04']
 ];
 
 const evalCases = [
@@ -79,9 +86,7 @@ const insertMany = (sql, rows) => {
   const statement = db.prepare(sql);
   db.exec('BEGIN');
   try {
-    for (const row of rows) {
-      statement.run(...row);
-    }
+    for (const row of rows) statement.run(...row);
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');
@@ -91,13 +96,15 @@ const insertMany = (sql, rows) => {
 
 insertMany('INSERT INTO source_feeds (id, name, kind, status, owner, records_24h, last_ingest_at, freshness_minutes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', sourceFeeds);
 insertMany('INSERT INTO ingest_batches (id, source_feed_id, source_name, accepted_count, deduped_count, status, received_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', ingestBatches);
-insertMany(`INSERT INTO trace_events (id, source_feed_id, external_event_id, conversation_id, failure_signal, severity, model_name, tool_trace, user_intent, transcript_excerpt, happened_at, metadata_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, traceEvents);
-insertMany(`INSERT INTO trace_artifacts (id, trace_event_id, artifact_type, payload, redaction_status, created_at) VALUES (?, ?, ?, ?, ?, ?)`, traceArtifacts);
-insertMany(`INSERT INTO failure_clusters (id, title, status, severity, trace_count, confidence_score, root_cause_hypothesis, owner, first_seen_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, failureClusters);
+insertMany('INSERT INTO trace_events (id, source_feed_id, external_event_id, conversation_id, failure_signal, severity, model_name, tool_trace, user_intent, transcript_excerpt, happened_at, metadata_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', traceEvents);
+insertMany('INSERT INTO trace_artifacts (id, trace_event_id, artifact_type, payload, redaction_status, created_at) VALUES (?, ?, ?, ?, ?, ?)', traceArtifacts);
+insertMany('INSERT INTO failure_clusters (id, title, status, severity, trace_count, confidence_score, root_cause_hypothesis, owner, first_seen_at, last_seen_at, triage_note, last_recomputed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', failureClusters);
+insertMany('INSERT INTO cluster_labels (id, cluster_id, label_type, label_value, confidence_score, assigned_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', clusterLabels);
+insertMany('INSERT INTO cluster_recompute_runs (id, cluster_id, strategy, status, trace_count, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', clusterRecomputeRuns);
 insertMany('INSERT INTO cluster_traces (cluster_id, trace_event_id) VALUES (?, ?)', clusterTraces);
-insertMany(`INSERT INTO eval_cases (id, cluster_id, name, priority, assertion_type, promptfoo_ready, expected_behavior, generated_from, owner, last_exported_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, evalCases);
-insertMany(`INSERT INTO replay_runs (id, eval_case_id, baseline_version, candidate_version, verdict, regressions_found, improvements_found, executed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, replayRuns);
-insertMany(`INSERT INTO export_batches (id, target_system, target_path, case_count, status, created_at) VALUES (?, ?, ?, ?, ?, ?)`, exportBatches);
+insertMany('INSERT INTO eval_cases (id, cluster_id, name, priority, assertion_type, promptfoo_ready, expected_behavior, generated_from, owner, last_exported_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', evalCases);
+insertMany('INSERT INTO replay_runs (id, eval_case_id, baseline_version, candidate_version, verdict, regressions_found, improvements_found, executed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', replayRuns);
+insertMany('INSERT INTO export_batches (id, target_system, target_path, case_count, status, created_at) VALUES (?, ?, ?, ?, ?, ?)', exportBatches);
 
-console.log(`Seeded ${traceEvents.length} traces, ${ingestBatches.length} ingest batches, and ${evalCases.length} eval cases into data/monitor.db`);
+console.log(`Seeded ${traceEvents.length} traces, ${clusterLabels.length} cluster labels, and ${evalCases.length} eval cases into data/monitor.db`);
 db.close();
