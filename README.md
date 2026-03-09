@@ -35,6 +35,21 @@ That makes this tool the layer **before** promptfoo and partially **around** pro
 5. Replay the cases across prompt/retriever versions.
 6. Publish promptfoo export batches.
 
+## v0.2 Priorities
+
+The next build phase is documented in:
+
+- [`docs/v0.2-plan.md`](./docs/v0.2-plan.md): implementation plan, milestones, success metrics, and build order
+- [`docs/api-v0.2.md`](./docs/api-v0.2.md): concrete API shapes, entity states, and Postgres-oriented schema direction
+
+The highest-priority advanced features for `v0.2` are:
+
+- real ingestion adapters with idempotent normalization
+- failure clustering with structured root-cause labels
+- reviewable eval proposal generation with lineage
+- replay and regression attribution across versioned releases
+- deterministic promptfoo export batches
+
 ## Repo Layout
 
 - `src/`: SQLite schema and HTTP server
@@ -82,4 +97,4 @@ That is a distinct product surface, and it can integrate with `promptfoo` rather
 - direct `promptfoo` file generation and PR creation
 - regression bisection that attributes quality deltas to prompt, model, retrieval, or tool changes
 
-See [`docs/architecture.md`](./docs/architecture.md) and [`docs/roadmap.md`](./docs/roadmap.md) for the fuller product spec.
+See [`docs/architecture.md`](./docs/architecture.md), [`docs/roadmap.md`](./docs/roadmap.md), [`docs/v0.2-plan.md`](./docs/v0.2-plan.md), and [`docs/api-v0.2.md`](./docs/api-v0.2.md) for the fuller product spec.

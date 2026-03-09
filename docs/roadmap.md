@@ -25,8 +25,8 @@ Build:
 
 - replay engine with baseline vs candidate comparisons
 - prompt, model, retriever, and tool version metadata
-- regression attribution heuristics
 - trend views per release
+- attribution heuristics at the case-result level
 
 Success criteria:
 
@@ -61,6 +61,18 @@ Build:
 Success criteria:
 
 - the system becomes the default source of truth for eval backlog creation
+
+## Immediate Focus
+
+The build-ready plan for the next phase lives in [`docs/v0.2-plan.md`](./v0.2-plan.md) and [`docs/api-v0.2.md`](./api-v0.2.md).
+
+If the team starts implementation now, the correct order is:
+
+1. ingestion and normalization
+2. clustering and triage
+3. case generation and review
+4. replay and attribution
+5. promptfoo export workflow
 
 ## Risks
 
