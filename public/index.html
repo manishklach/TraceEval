@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>TraveEval</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Promptfoo Adjacent Control Plane</p>
+          <h1>Find production failures, turn them into evals, and export them into promptfoo.</h1>
+          <p class="lede">
+            This prototype focuses on the missing loop around eval tooling: ingest live traces, cluster failures, generate canonical cases,
+            replay them against candidate prompt versions, and publish promptfoo-ready packs.
+          </p>
+        </div>
+        <div class="hero-meta">
+          <div class="hero-card">
+            <span>Generated</span>
+            <strong id="generatedAt">-</strong>
+          </div>
+          <div class="hero-card">
+            <span>North star</span>
+            <strong>Continuous eval discovery</strong>
+          </div>
+          <div class="hero-card code-card">
+            <span>Export target</span>
+            <strong>/api/promptfoo-export</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="stats" id="stats"></section>
+
+      <section class="layout two-up">
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Connected sources</h2>
+            <p>Where failures are mined from</p>
+          </div>
+          <div id="sourceCards" class="card-grid"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Replay runs</h2>
+            <p>Regression bisection across prompt versions</p>
+          </div>
+          <div id="replayList" class="stack-list"></div>
+        </section>
+      </section>
+
+      <section class="layout focus-layout">
+        <section class="panel span-two">
+          <div class="panel-header">
+            <h2>Failure clusters</h2>
+            <p>Root-cause buckets ready for canonicalization</p>
+          </div>
+          <div id="clusterCards" class="cluster-grid"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Promptfoo export</h2>
+            <p>Draft YAML generated from trace-derived cases</p>
+          </div>
+          <pre id="exportPreview" class="code-block"></pre>
+        </section>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Generated eval cases</h2>
+          <p>Cases with lineage back to real incidents</p>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Case</th>
+                <th>Cluster</th>
+                <th>Priority</th>
+                <th>Assertion</th>
+                <th>Ready</th>
+                <th>Owner</th>
+              </tr>
+            </thead>
+            <tbody id="evalCasesTable"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Export history</h2>
+          <p>How discovered cases flow into promptfoo packs</p>
+        </div>
+        <div id="exportList" class="stack-list exports"></div>
+      </section>
+    </main>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
