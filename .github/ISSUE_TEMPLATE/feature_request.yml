@@ -1,0 +1,57 @@
+name: Feature request
+description: Propose a new capability or workflow improvement for TraceEval.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please anchor the request in the TraceEval product loop: ingest, cluster, review, replay, attribute, or export.
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      placeholder: Add GitHub PR creation from approved export batches.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - ingestion
+        - clustering
+        - review workflow
+        - replay and attribution
+        - export
+        - GitHub integration
+        - dashboard
+        - docs
+        - other
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user or team pain does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the shape of the feature or workflow.
+    validations:
+      required: true
+  - type: textarea
+    id: success
+    attributes:
+      label: Success criteria
+      description: What outcomes would show this feature is valuable?
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Links, screenshots, competing tools, or API notes.

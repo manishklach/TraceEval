@@ -1,0 +1,67 @@
+name: Bug report
+description: Report a broken workflow, API behavior, or regression in TraceEval.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. Please focus on the user-visible failure and how it affects the TraceEval pipeline.
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      description: Short description of the bug.
+      placeholder: Replay results are missing attribution labels after creating a new run.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - ingestion
+        - clustering
+        - review workflow
+        - replay and attribution
+        - export
+        - dashboard
+        - docs
+        - other
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Be specific enough for someone else to reproduce the problem locally.
+      placeholder: |
+        1. Run npm run seed
+        2. Start the server
+        3. POST to /api/replays
+        4. Open replay details
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification details
+      description: Include request payloads, response snippets, screenshots, or local environment notes if useful.
+  - type: textarea
+    id: impact
+    attributes:
+      label: Why this matters
+      description: Explain the effect on the TraceEval workflow or release confidence.

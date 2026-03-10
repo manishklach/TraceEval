@@ -1,6 +1,7 @@
 # TraceEval
 
 ![TraceEval social preview](./docs/assets/traceeval-social-preview.svg)
+![TraceEval dashboard preview](./docs/assets/dashboard-preview.svg)
 
 [![Release](https://img.shields.io/github/v/release/manishklach/TraceEval?display_name=tag)](https://github.com/manishklach/TraceEval/releases/latest)
 [![License](https://img.shields.io/github/license/manishklach/TraceEval)](./LICENSE)
@@ -112,3 +113,11 @@ That is a distinct product surface, and it can integrate with `promptfoo` rather
 - regression bisection that attributes quality deltas to prompt, model, retrieval, or tool changes
 
 See [`docs/architecture.md`](./docs/architecture.md), [`docs/roadmap.md`](./docs/roadmap.md), [`docs/v0.2-plan.md`](./docs/v0.2-plan.md), and [`docs/api-v0.2.md`](./docs/api-v0.2.md) for the fuller product spec.
+
+## Roadmap Tracking
+
+The public backlog is tracked in GitHub through the [TraceEval v0.2 milestone](https://github.com/manishklach/TraceEval/milestone/1) and its starter roadmap issues.
+
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for setup, workflow expectations, and PR guidance.
