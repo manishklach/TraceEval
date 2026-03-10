@@ -1,10 +1,20 @@
 # TraceEval
 
-A git-ready prototype for a product that complements [promptfoo](https://github.com/promptfoo/promptfoo) instead of competing head-on with its core evaluation engine.
+![TraceEval social preview](./docs/assets/traceeval-social-preview.svg)
+
+[![Release](https://img.shields.io/github/v/release/manishklach/TraceEval?display_name=tag)](https://github.com/manishklach/TraceEval/releases/latest)
+[![License](https://img.shields.io/github/license/manishklach/TraceEval)](./LICENSE)
+[![Node](https://img.shields.io/badge/node-%3E%3D22-0f172a?logo=node.js)](./package.json)
+
+TraceEval is a git-ready prototype for a product that complements [promptfoo](https://github.com/promptfoo/promptfoo) instead of competing head-on with its core evaluation engine.
 
 The thesis is simple: `promptfoo` is already strong at running evals, red-team suites, and CI checks. The missing layer is **continuous eval discovery**: turning real production failures into canonical eval cases, replaying them against prompt or retrieval changes, and exporting the resulting suites into `promptfoo`.
 
 This repo demonstrates that workflow with a small Node + SQLite app.
+
+## Description
+
+Trace-to-eval control plane that turns production failures into promptfoo-ready eval packs.
 
 ## Product Positioning
 
@@ -73,6 +83,10 @@ Open [http://localhost:3000](http://localhost:3000).
 ```powershell
 npm test
 ```
+
+## License
+
+[MIT](./LICENSE)
 
 ## Endpoints
 
