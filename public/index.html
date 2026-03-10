@@ -12,114 +12,39 @@
         <div>
           <p class="eyebrow">Promptfoo Adjacent Control Plane</p>
           <h1>Find production failures, turn them into evals, and export them into promptfoo.</h1>
-          <p class="lede">
-            This prototype focuses on the missing loop around eval tooling: ingest live traces, cluster failures, generate canonical cases,
-            replay them against candidate prompt versions, and publish promptfoo-ready packs.
-          </p>
+          <p class="lede">This prototype now includes the review workflow: clusters generate proposal cases, reviewers approve or reject them, and only approved cases flow into export packs.</p>
         </div>
         <div class="hero-meta">
-          <div class="hero-card">
-            <span>Generated</span>
-            <strong id="generatedAt">-</strong>
-          </div>
-          <div class="hero-card">
-            <span>Triage APIs</span>
-            <strong>POST /api/clusters/:id/recompute</strong>
-          </div>
-          <div class="hero-card code-card">
-            <span>Assign owner</span>
-            <strong>POST /api/clusters/:id/assign-owner</strong>
-          </div>
+          <div class="hero-card"><span>Generated</span><strong id="generatedAt">-</strong></div>
+          <div class="hero-card"><span>Generation API</span><strong>POST /api/clusters/:id/generate-cases</strong></div>
+          <div class="hero-card code-card"><span>Review API</span><strong>POST /api/cases/:id/review</strong></div>
         </div>
       </section>
 
       <section class="stats" id="stats"></section>
 
       <section class="layout two-up">
-        <section class="panel">
-          <div class="panel-header">
-            <h2>Connected sources</h2>
-            <p>Where failures are mined from</p>
-          </div>
-          <div id="sourceCards" class="card-grid"></div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-header">
-            <h2>Recent ingest batches</h2>
-            <p>Normalization, dedupe, and redaction pipeline</p>
-          </div>
-          <div id="ingestList" class="stack-list"></div>
-        </section>
+        <section class="panel"><div class="panel-header"><h2>Connected sources</h2><p>Where failures are mined from</p></div><div id="sourceCards" class="card-grid"></div></section>
+        <section class="panel"><div class="panel-header"><h2>Recent ingest batches</h2><p>Normalization, dedupe, and redaction pipeline</p></div><div id="ingestList" class="stack-list"></div></section>
       </section>
 
       <section class="layout two-up">
-        <section class="panel">
-          <div class="panel-header">
-            <h2>Cluster activity</h2>
-            <p>Recompute runs and triage changes</p>
-          </div>
-          <div id="clusterActivityList" class="stack-list"></div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-header">
-            <h2>Promptfoo export</h2>
-            <p>Draft YAML generated from trace-derived cases</p>
-          </div>
-          <pre id="exportPreview" class="code-block short"></pre>
-        </section>
+        <section class="panel"><div class="panel-header"><h2>Cluster activity</h2><p>Recompute runs and triage changes</p></div><div id="clusterActivityList" class="stack-list"></div></section>
+        <section class="panel"><div class="panel-header"><h2>Review queue</h2><p>Cases waiting for decision and recent review outcomes</p></div><div id="reviewList" class="stack-list"></div></section>
       </section>
 
       <section class="layout focus-layout">
-        <section class="panel span-two">
-          <div class="panel-header">
-            <h2>Failure clusters</h2>
-            <p>Root-cause buckets ready for triage and canonicalization</p>
-          </div>
-          <div id="clusterCards" class="cluster-grid"></div>
-        </section>
+        <section class="panel span-two"><div class="panel-header"><h2>Failure clusters</h2><p>Root-cause buckets ready for reviewable case generation</p></div><div id="clusterCards" class="cluster-grid"></div></section>
       </section>
 
       <section class="layout two-up">
-        <section class="panel">
-          <div class="panel-header">
-            <h2>Replay runs</h2>
-            <p>Regression bisection across prompt versions</p>
-          </div>
-          <div id="replayList" class="stack-list"></div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-header">
-            <h2>Export history</h2>
-            <p>How discovered cases flow into promptfoo packs</p>
-          </div>
-          <div id="exportList" class="stack-list exports"></div>
-        </section>
+        <section class="panel"><div class="panel-header"><h2>Promptfoo export</h2><p>Only approved cases are exported</p></div><pre id="exportPreview" class="code-block short"></pre></section>
+        <section class="panel"><div class="panel-header"><h2>Replay runs</h2><p>Regression bisection across prompt versions</p></div><div id="replayList" class="stack-list"></div></section>
       </section>
 
-      <section class="panel">
-        <div class="panel-header">
-          <h2>Generated eval cases</h2>
-          <p>Cases with lineage back to real incidents</p>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Case</th>
-                <th>Cluster</th>
-                <th>Priority</th>
-                <th>Assertion</th>
-                <th>Ready</th>
-                <th>Owner</th>
-              </tr>
-            </thead>
-            <tbody id="evalCasesTable"></tbody>
-          </table>
-        </div>
-      </section>
+      <section class="panel"><div class="panel-header"><h2>Generated eval cases</h2><p>Cases with status, owner, and review history</p></div><div class="table-wrap"><table><thead><tr><th>Case</th><th>Cluster</th><th>Status</th><th>Priority</th><th>Assertion</th><th>Owner</th></tr></thead><tbody id="evalCasesTable"></tbody></table></div></section>
+
+      <section class="panel"><div class="panel-header"><h2>Export history</h2><p>How approved cases flow into promptfoo packs</p></div><div id="exportList" class="stack-list exports"></div></section>
     </main>
     <script type="module" src="/app.js"></script>
   </body>

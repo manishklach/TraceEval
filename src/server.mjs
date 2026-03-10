@@ -4,15 +4,20 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   assignClusterOwner,
+  generateCasesFromCluster,
+  getCaseDetails,
   getClusterDetails,
   getDashboardSnapshot,
   getPromptfooExport,
   getSampleRows,
   ingestSourceEvents,
   initSchema,
+  listCases,
   listClusters,
   openDb,
-  recomputeCluster
+  recomputeCluster,
+  reviewCase,
+  updateCase
 } from './db.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -32,10 +37,7 @@ function text(response, statusCode, payload, contentType = 'text/plain; charset=
 
 function serveFile(response, relativePath, contentType) {
   const filePath = path.join(publicDir, relativePath);
-  if (!existsSync(filePath)) {
-    text(response, 404, 'Not found');
-    return;
-  }
+  if (!existsSync(filePath)) return text(response, 404, 'Not found');
   response.writeHead(200, { 'Content-Type': contentType });
   response.end(readFileSync(filePath));
 }
@@ -52,10 +54,7 @@ function readJsonBody(request) {
       }
     });
     request.on('end', () => {
-      if (!body) {
-        resolve({});
-        return;
-      }
+      if (!body) return resolve({});
       try {
         resolve(JSON.parse(body));
       } catch {
@@ -75,85 +74,64 @@ export function buildApp() {
     const clusterMatch = url.pathname.match(/^\/api\/clusters\/([^/]+)$/);
     const recomputeMatch = url.pathname.match(/^\/api\/clusters\/([^/]+)\/recompute$/);
     const assignOwnerMatch = url.pathname.match(/^\/api\/clusters\/([^/]+)\/assign-owner$/);
+    const generateCasesMatch = url.pathname.match(/^\/api\/clusters\/([^/]+)\/generate-cases$/);
+    const caseMatch = url.pathname.match(/^\/api\/cases\/([^/]+)$/);
+    const caseReviewMatch = url.pathname.match(/^\/api\/cases\/([^/]+)\/review$/);
 
     try {
-      if (request.method === 'GET' && url.pathname === '/api/health') {
-        json(response, 200, { ok: true, service: 'traceeval' });
-        return;
-      }
-      if (request.method === 'GET' && url.pathname === '/api/dashboard') {
-        json(response, 200, getDashboardSnapshot(db));
-        return;
-      }
-      if (request.method === 'GET' && url.pathname === '/api/sample-db') {
-        json(response, 200, getSampleRows(db));
-        return;
-      }
-      if (request.method === 'GET' && url.pathname === '/api/promptfoo-export') {
-        text(response, 200, getPromptfooExport(db), 'text/yaml; charset=utf-8');
-        return;
-      }
-      if (request.method === 'GET' && url.pathname === '/api/clusters') {
-        json(response, 200, { items: listClusters(db) });
-        return;
-      }
-      if (request.method === 'GET' && clusterMatch) {
-        json(response, 200, getClusterDetails(db, clusterMatch[1]));
-        return;
-      }
+      if (request.method === 'GET' && url.pathname === '/api/health') return json(response, 200, { ok: true, service: 'traceeval' });
+      if (request.method === 'GET' && url.pathname === '/api/dashboard') return json(response, 200, getDashboardSnapshot(db));
+      if (request.method === 'GET' && url.pathname === '/api/sample-db') return json(response, 200, getSampleRows(db));
+      if (request.method === 'GET' && url.pathname === '/api/promptfoo-export') return text(response, 200, getPromptfooExport(db), 'text/yaml; charset=utf-8');
+      if (request.method === 'GET' && url.pathname === '/api/clusters') return json(response, 200, { items: listClusters(db) });
+      if (request.method === 'GET' && url.pathname === '/api/cases') return json(response, 200, { items: listCases(db) });
+      if (request.method === 'GET' && clusterMatch) return json(response, 200, getClusterDetails(db, clusterMatch[1]));
+      if (request.method === 'GET' && caseMatch) return json(response, 200, getCaseDetails(db, caseMatch[1]));
+
       if (request.method === 'POST' && recomputeMatch) {
         const payload = await readJsonBody(request);
-        json(response, 202, recomputeCluster(db, recomputeMatch[1], payload.strategy || 'rules-v1', payload.requestedBy || 'triage-bot'));
-        return;
+        return json(response, 202, recomputeCluster(db, recomputeMatch[1], payload.strategy || 'rules-v1', payload.requestedBy || 'triage-bot'));
       }
       if (request.method === 'POST' && assignOwnerMatch) {
         const payload = await readJsonBody(request);
-        if (!payload.owner) {
-          json(response, 400, { error: 'Body must include owner' });
-          return;
-        }
-        json(response, 200, assignClusterOwner(db, assignOwnerMatch[1], payload.owner, payload.triageNote || ''));
-        return;
+        if (!payload.owner) return json(response, 400, { error: 'Body must include owner' });
+        return json(response, 200, assignClusterOwner(db, assignOwnerMatch[1], payload.owner, payload.triageNote || ''));
+      }
+      if (request.method === 'POST' && generateCasesMatch) {
+        const payload = await readJsonBody(request);
+        return json(response, 202, generateCasesFromCluster(db, generateCasesMatch[1], payload.generator || 'default-generator', payload.reviewerRequired !== false));
+      }
+      if (request.method === 'POST' && caseReviewMatch) {
+        const payload = await readJsonBody(request);
+        if (!payload.decision || !payload.reviewer) return json(response, 400, { error: 'Body must include decision and reviewer' });
+        return json(response, 200, reviewCase(db, caseReviewMatch[1], payload.decision, payload.reviewer, payload.notes || ''));
+      }
+      if (request.method === 'PATCH' && caseMatch) {
+        const payload = await readJsonBody(request);
+        return json(response, 200, updateCase(db, caseMatch[1], payload));
       }
       if (request.method === 'POST' && url.pathname === '/api/ingest/source-events') {
         const payload = await readJsonBody(request);
-        if (!payload.source || !Array.isArray(payload.events)) {
-          json(response, 400, { error: 'Body must include source and events[]' });
-          return;
-        }
-        json(response, 202, ingestSourceEvents(db, payload));
-        return;
+        if (!payload.source || !Array.isArray(payload.events)) return json(response, 400, { error: 'Body must include source and events[]' });
+        return json(response, 202, ingestSourceEvents(db, payload));
       }
-      if (request.method === 'GET' && url.pathname === '/app.js') {
-        serveFile(response, 'app.js', 'application/javascript; charset=utf-8');
-        return;
-      }
-      if (request.method === 'GET' && url.pathname === '/styles.css') {
-        serveFile(response, 'styles.css', 'text/css; charset=utf-8');
-        return;
-      }
-      if (request.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
-        serveFile(response, 'index.html', 'text/html; charset=utf-8');
-        return;
-      }
-      text(response, 404, 'Not found');
+
+      if (request.method === 'GET' && url.pathname === '/app.js') return serveFile(response, 'app.js', 'application/javascript; charset=utf-8');
+      if (request.method === 'GET' && url.pathname === '/styles.css') return serveFile(response, 'styles.css', 'text/css; charset=utf-8');
+      if (request.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) return serveFile(response, 'index.html', 'text/html; charset=utf-8');
+      return text(response, 404, 'Not found');
     } catch (error) {
-      json(response, 500, { error: error.message });
+      return json(response, 500, { error: error.message });
     }
   });
 
-  server.on('close', () => {
-    db.close();
-  });
-
+  server.on('close', () => db.close());
   return server;
 }
 
 export function startServer({ port = 3000 } = {}) {
   const server = buildApp();
-  return new Promise((resolve) => {
-    server.listen(port, () => resolve(server));
-  });
+  return new Promise((resolve) => server.listen(port, () => resolve(server)));
 }
 
 if (process.argv[1] === __filename) {

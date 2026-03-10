@@ -8,6 +8,6 @@
     "seed": "node scripts/seed.mjs",
     "start": "node src/server.mjs",
     "preview": "node scripts/export-preview.mjs",
-    "test": "node scripts/verify.mjs"
+    "test": "node scripts/seed.mjs && node scripts/verify.mjs"
   }
 }
