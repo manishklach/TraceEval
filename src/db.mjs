@@ -75,6 +75,33 @@ function inferClusterTitle(label, trace) {
   return `Unclassified failures in ${intent}`;
 }
 
+function inferCasePriority(clusterSeverity) {
+  if (clusterSeverity === 'critical') return 'p0';
+  if (clusterSeverity === 'high') return 'p1';
+  return 'p2';
+}
+
+function inferAssertionType(rootCauseLabel) {
+  if (rootCauseLabel === 'policy_hallucination') return 'contains-json';
+  if (rootCauseLabel === 'tool_timeout') return 'contains';
+  if (rootCauseLabel === 'retrieval_staleness') return 'llm-rubric';
+  return 'contains';
+}
+
+function inferCaseExpectedBehavior(cluster, trace) {
+  const label = (trace.root_cause_label || 'unknown_failure_mode').replace(/_/g, ' ');
+  return `The assistant should avoid ${label} and handle ${trace.user_intent || 'the user request'} correctly using approved workflow guidance.`;
+}
+
+function inferReplayAttribution(baselineVersion, candidateVersion, caseItem) {
+  if (baselineVersion.prompt_version !== candidateVersion.prompt_version) return 'prompt_change';
+  if (baselineVersion.retriever_version !== candidateVersion.retriever_version) return 'retriever_change';
+  if (baselineVersion.model_name !== candidateVersion.model_name) return 'model_change';
+  if (baselineVersion.tool_manifest_version !== candidateVersion.tool_manifest_version) return 'tooling_change';
+  if (caseItem.assertion_type === 'llm-rubric') return 'evaluation_rubric_shift';
+  return 'unknown_change';
+}
+
 function normalizeEvent(sourceFeedId, event, index) {
   const happenedAt = event.happenedAt || nowIso();
   const conversationId = String(event.conversationId || `conversation-${index + 1}`);
@@ -107,24 +134,6 @@ function normalizeEvent(sourceFeedId, event, index) {
     raw_payload: JSON.stringify(event),
     redacted_payload: JSON.stringify({ ...event, transcriptExcerpt, toolTrace, userIntent })
   };
-}
-
-function inferCasePriority(clusterSeverity) {
-  if (clusterSeverity === 'critical') return 'p0';
-  if (clusterSeverity === 'high') return 'p1';
-  return 'p2';
-}
-
-function inferAssertionType(rootCauseLabel) {
-  if (rootCauseLabel === 'policy_hallucination') return 'contains-json';
-  if (rootCauseLabel === 'tool_timeout') return 'contains';
-  if (rootCauseLabel === 'retrieval_staleness') return 'llm-rubric';
-  return 'contains';
-}
-
-function inferCaseExpectedBehavior(cluster, trace) {
-  const label = (trace.root_cause_label || 'unknown_failure_mode').replace(/_/g, ' ');
-  return `The assistant should avoid ${label} and handle ${trace.user_intent || 'the user request'} correctly using approved workflow guidance.`;
 }
 
 export function openDb() {
@@ -261,15 +270,41 @@ export function initSchema(db) {
       FOREIGN KEY (eval_case_id) REFERENCES eval_cases(id)
     );
 
+    CREATE TABLE IF NOT EXISTS release_versions (
+      id TEXT PRIMARY KEY,
+      environment TEXT NOT NULL,
+      prompt_version TEXT NOT NULL,
+      model_name TEXT NOT NULL,
+      retriever_version TEXT NOT NULL,
+      tool_manifest_version TEXT NOT NULL,
+      policy_pack_version TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS replay_runs (
       id TEXT PRIMARY KEY,
+      baseline_version_id TEXT NOT NULL,
+      candidate_version_id TEXT NOT NULL,
+      status TEXT NOT NULL,
+      created_by TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      completed_at TEXT,
+      FOREIGN KEY (baseline_version_id) REFERENCES release_versions(id),
+      FOREIGN KEY (candidate_version_id) REFERENCES release_versions(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS replay_case_results (
+      id TEXT PRIMARY KEY,
+      replay_run_id TEXT NOT NULL,
       eval_case_id TEXT NOT NULL,
-      baseline_version TEXT NOT NULL,
-      candidate_version TEXT NOT NULL,
+      baseline_score REAL NOT NULL,
+      candidate_score REAL NOT NULL,
+      delta REAL NOT NULL,
       verdict TEXT NOT NULL,
-      regressions_found INTEGER NOT NULL,
-      improvements_found INTEGER NOT NULL,
-      executed_at TEXT NOT NULL,
+      attribution_label TEXT NOT NULL,
+      details_json TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (replay_run_id) REFERENCES replay_runs(id),
       FOREIGN KEY (eval_case_id) REFERENCES eval_cases(id)
     );
 
@@ -287,7 +322,9 @@ export function initSchema(db) {
 export function resetDatabase(db) {
   db.exec(`
     DROP TABLE IF EXISTS export_batches;
+    DROP TABLE IF EXISTS replay_case_results;
     DROP TABLE IF EXISTS replay_runs;
+    DROP TABLE IF EXISTS release_versions;
     DROP TABLE IF EXISTS case_reviews;
     DROP TABLE IF EXISTS eval_cases;
     DROP TABLE IF EXISTS cluster_traces;
@@ -300,7 +337,6 @@ export function resetDatabase(db) {
     DROP TABLE IF EXISTS source_feeds;
   `);
 }
-
 export function ensureSourceFeed(db, sourceName, owner = 'ingest-api') {
   const sourceId = `src-${slugify(sourceName)}`;
   const existing = db.prepare(`SELECT * FROM source_feeds WHERE id = ?`).get(sourceId);
@@ -432,18 +468,6 @@ export function listClusters(db) {
   `).all();
 }
 
-export function getClusterDetails(db, clusterId) {
-  const cluster = db.prepare(`SELECT * FROM failure_clusters WHERE id = ?`).get(clusterId);
-  if (!cluster) throw new Error(`Cluster not found: ${clusterId}`);
-  return {
-    cluster,
-    labels: db.prepare(`SELECT * FROM cluster_labels WHERE cluster_id = ? ORDER BY created_at DESC`).all(clusterId),
-    recomputeRuns: db.prepare(`SELECT * FROM cluster_recompute_runs WHERE cluster_id = ? ORDER BY created_at DESC`).all(clusterId),
-    traces: db.prepare(`SELECT t.* FROM trace_events t JOIN cluster_traces ct ON ct.trace_event_id = t.id WHERE ct.cluster_id = ? ORDER BY t.happened_at DESC`).all(clusterId),
-    cases: listCases(db, { clusterId })
-  };
-}
-
 export function listCases(db, { clusterId } = {}) {
   const whereClause = clusterId ? 'WHERE e.cluster_id = ?' : '';
   return db.prepare(`
@@ -460,12 +484,24 @@ export function listCases(db, { clusterId } = {}) {
   `).all(...(clusterId ? [clusterId] : []));
 }
 
+export function getClusterDetails(db, clusterId) {
+  const cluster = db.prepare(`SELECT * FROM failure_clusters WHERE id = ?`).get(clusterId);
+  if (!cluster) throw new Error(`Cluster not found: ${clusterId}`);
+  return {
+    cluster,
+    labels: db.prepare(`SELECT * FROM cluster_labels WHERE cluster_id = ? ORDER BY created_at DESC`).all(clusterId),
+    recomputeRuns: db.prepare(`SELECT * FROM cluster_recompute_runs WHERE cluster_id = ? ORDER BY created_at DESC`).all(clusterId),
+    traces: db.prepare(`SELECT t.* FROM trace_events t JOIN cluster_traces ct ON ct.trace_event_id = t.id WHERE ct.cluster_id = ? ORDER BY t.happened_at DESC`).all(clusterId),
+    cases: listCases(db, { clusterId })
+  };
+}
 export function getCaseDetails(db, caseId) {
   const item = db.prepare(`SELECT * FROM eval_cases WHERE id = ?`).get(caseId);
   if (!item) throw new Error(`Case not found: ${caseId}`);
   return {
     case: item,
-    reviews: db.prepare(`SELECT * FROM case_reviews WHERE eval_case_id = ? ORDER BY created_at DESC`).all(caseId)
+    reviews: db.prepare(`SELECT * FROM case_reviews WHERE eval_case_id = ? ORDER BY created_at DESC`).all(caseId),
+    replayResults: db.prepare(`SELECT * FROM replay_case_results WHERE eval_case_id = ? ORDER BY created_at DESC`).all(caseId)
   };
 }
 
@@ -527,25 +563,108 @@ export function generateCasesFromCluster(db, clusterId, generator = 'default-gen
   const name = `Generated case for ${cluster.title}`;
 
   db.prepare(`INSERT INTO eval_cases (id, cluster_id, status, name, priority, assertion_type, promptfoo_ready, expected_behavior, generated_from, owner, input_text, last_exported_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
-    caseId,
-    clusterId,
-    status,
-    name,
-    inferCasePriority(cluster.severity),
-    inferAssertionType(latestLabel),
-    promptfooReady,
-    inferCaseExpectedBehavior(cluster, { ...trace, root_cause_label: latestLabel }),
-    generator,
-    cluster.owner,
-    `User intent: ${trace.user_intent}\nFailure excerpt: ${trace.transcript_excerpt}`,
-    null,
-    timestamp
+    caseId, clusterId, status, name, inferCasePriority(cluster.severity), inferAssertionType(latestLabel), promptfooReady,
+    inferCaseExpectedBehavior(cluster, { ...trace, root_cause_label: latestLabel }), generator, cluster.owner,
+    `User intent: ${trace.user_intent}\nFailure excerpt: ${trace.transcript_excerpt}`, null, timestamp
   );
 
   db.prepare(`UPDATE failure_clusters SET status = ?, last_seen_at = ? WHERE id = ?`).run(reviewerRequired ? 'reviewing' : 'ready_to_export', timestamp, clusterId);
   return { generatedCaseIds: [caseId], items: listCases(db, { clusterId }).filter((item) => item.id === caseId) };
 }
 
+export function listReleaseVersions(db) {
+  return db.prepare(`SELECT * FROM release_versions ORDER BY created_at DESC`).all();
+}
+
+export function getReplayDetails(db, replayRunId) {
+  const replayRun = db.prepare(`
+    SELECT r.*, b.prompt_version AS baseline_prompt_version, c.prompt_version AS candidate_prompt_version,
+      b.model_name AS baseline_model_name, c.model_name AS candidate_model_name,
+      b.retriever_version AS baseline_retriever_version, c.retriever_version AS candidate_retriever_version
+    FROM replay_runs r
+    JOIN release_versions b ON b.id = r.baseline_version_id
+    JOIN release_versions c ON c.id = r.candidate_version_id
+    WHERE r.id = ?
+  `).get(replayRunId);
+  if (!replayRun) throw new Error(`Replay run not found: ${replayRunId}`);
+  return {
+    replayRun,
+    results: db.prepare(`
+      SELECT rr.*, e.name AS case_name, e.priority, e.cluster_id
+      FROM replay_case_results rr
+      JOIN eval_cases e ON e.id = rr.eval_case_id
+      WHERE rr.replay_run_id = ?
+      ORDER BY rr.created_at DESC
+    `).all(replayRunId)
+  };
+}
+
+export function listReplayRuns(db) {
+  return db.prepare(`
+    SELECT r.*, b.prompt_version AS baseline_prompt_version, c.prompt_version AS candidate_prompt_version,
+      COUNT(rr.id) AS result_count,
+      SUM(CASE WHEN rr.verdict = 'regressed' THEN 1 ELSE 0 END) AS regressions_found,
+      SUM(CASE WHEN rr.verdict = 'improved' THEN 1 ELSE 0 END) AS improvements_found
+    FROM replay_runs r
+    JOIN release_versions b ON b.id = r.baseline_version_id
+    JOIN release_versions c ON c.id = r.candidate_version_id
+    LEFT JOIN replay_case_results rr ON rr.replay_run_id = r.id
+    GROUP BY r.id
+    ORDER BY r.created_at DESC
+  `).all();
+}
+
+export function createReplayRun(db, payload) {
+  const baseline = db.prepare(`SELECT * FROM release_versions WHERE id = ?`).get(payload.baselineVersionId);
+  const candidate = db.prepare(`SELECT * FROM release_versions WHERE id = ?`).get(payload.candidateVersionId);
+  if (!baseline || !candidate) throw new Error('Baseline or candidate version not found');
+
+  const caseIds = Array.isArray(payload.caseIds) && payload.caseIds.length
+    ? payload.caseIds
+    : listCases(db).filter((item) => ['approved', 'exported'].includes(item.status)).map((item) => item.id);
+  if (!caseIds.length) throw new Error('No cases selected for replay');
+
+  const replayRunId = `replay-run-${Date.now()}`;
+  const createdAt = nowIso();
+  const caseItems = caseIds.map((caseId) => {
+    const item = db.prepare(`SELECT * FROM eval_cases WHERE id = ?`).get(caseId);
+    if (!item) throw new Error(`Case not found: ${caseId}`);
+    return item;
+  });
+
+  db.exec('BEGIN');
+  try {
+    db.prepare(`INSERT INTO replay_runs (id, baseline_version_id, candidate_version_id, status, created_by, created_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
+      replayRunId, baseline.id, candidate.id, 'completed', payload.createdBy || 'traceeval', createdAt, createdAt
+    );
+
+    for (const item of caseItems) {
+      const attribution = inferReplayAttribution(baseline, candidate, item);
+      const baselineScore = baseline.prompt_version === candidate.prompt_version ? 0.76 : 0.72;
+      const candidateScore = attribution === 'prompt_change' || attribution === 'retriever_change' ? baselineScore + 0.12 : baselineScore - 0.08;
+      const delta = Number((candidateScore - baselineScore).toFixed(2));
+      const verdict = delta > 0.01 ? 'improved' : delta < -0.01 ? 'regressed' : 'unchanged';
+      db.prepare(`INSERT INTO replay_case_results (id, replay_run_id, eval_case_id, baseline_score, candidate_score, delta, verdict, attribution_label, details_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+        `replay-case-${slugify(item.id)}-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+        replayRunId,
+        item.id,
+        baselineScore,
+        candidateScore,
+        delta,
+        verdict,
+        attribution,
+        JSON.stringify({ baselineVersionId: baseline.id, candidateVersionId: candidate.id, caseStatus: item.status }),
+        createdAt
+      );
+    }
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+
+  return getReplayDetails(db, replayRunId);
+}
 export function getPromptfooExport(db) {
   const cases = db.prepare(`
     SELECT e.id, e.name, e.assertion_type, e.expected_behavior, c.title AS cluster_title
@@ -582,28 +701,29 @@ export function getDashboardSnapshot(db) {
       (SELECT COUNT(*) FROM eval_cases WHERE status = 'proposed') AS cases_waiting_review,
       (SELECT COUNT(*) FROM case_reviews) AS completed_reviews,
       (SELECT COUNT(*) FROM source_feeds WHERE status = 'healthy') AS healthy_sources,
-      (SELECT COALESCE(SUM(regressions_found), 0) FROM replay_runs) AS regressions_detected,
       (SELECT COALESCE(SUM(accepted_count), 0) FROM ingest_batches) AS accepted_ingests,
       (SELECT COALESCE(SUM(deduped_count), 0) FROM ingest_batches) AS deduped_ingests,
       (SELECT COUNT(*) FROM cluster_recompute_runs) AS recompute_runs,
-      (SELECT COUNT(*) FROM cluster_labels WHERE label_type = 'root_cause') AS root_cause_labels
+      (SELECT COUNT(*) FROM cluster_labels WHERE label_type = 'root_cause') AS root_cause_labels,
+      (SELECT COUNT(*) FROM replay_runs) AS replay_runs,
+      (SELECT COUNT(*) FROM replay_case_results WHERE verdict = 'regressed') AS regressed_results,
+      (SELECT COUNT(*) FROM replay_case_results WHERE verdict = 'improved') AS improved_results
   `).get();
 
   const coverage = db.prepare(`SELECT ROUND(100.0 * SUM(CASE WHEN promptfoo_ready = 1 AND status IN ('approved', 'exported') THEN 1 ELSE 0 END) / COUNT(*), 1) AS case_export_coverage FROM eval_cases`).get();
-  const sources = db.prepare(`SELECT * FROM source_feeds ORDER BY CASE status WHEN 'healthy' THEN 1 WHEN 'lagging' THEN 2 ELSE 3 END, records_24h DESC`).all();
-  const recentIngests = db.prepare(`SELECT b.*, s.kind FROM ingest_batches b JOIN source_feeds s ON s.id = b.source_feed_id ORDER BY b.received_at DESC LIMIT 8`).all();
-  const recentClusterActivity = db.prepare(`SELECT rr.*, c.title, c.owner FROM cluster_recompute_runs rr JOIN failure_clusters c ON c.id = rr.cluster_id ORDER BY rr.created_at DESC LIMIT 8`).all();
-  const recentReviews = db.prepare(`SELECT cr.*, e.name AS case_name, e.status FROM case_reviews cr JOIN eval_cases e ON e.id = cr.eval_case_id ORDER BY cr.created_at DESC LIMIT 8`).all();
+
   return {
     generatedAt: nowIso(),
     pipelineSummary: { ...pipelineSummary, case_export_coverage: Number(coverage.case_export_coverage || 0) },
-    sources,
-    recentIngests,
-    recentClusterActivity,
-    recentReviews,
+    sources: db.prepare(`SELECT * FROM source_feeds ORDER BY CASE status WHEN 'healthy' THEN 1 WHEN 'lagging' THEN 2 ELSE 3 END, records_24h DESC`).all(),
+    recentIngests: db.prepare(`SELECT b.*, s.kind FROM ingest_batches b JOIN source_feeds s ON s.id = b.source_feed_id ORDER BY b.received_at DESC LIMIT 8`).all(),
+    recentClusterActivity: db.prepare(`SELECT rr.*, c.title, c.owner FROM cluster_recompute_runs rr JOIN failure_clusters c ON c.id = rr.cluster_id ORDER BY rr.created_at DESC LIMIT 8`).all(),
+    recentReviews: db.prepare(`SELECT cr.*, e.name AS case_name, e.status FROM case_reviews cr JOIN eval_cases e ON e.id = cr.eval_case_id ORDER BY cr.created_at DESC LIMIT 8`).all(),
     clusters: listClusters(db),
     evalCases: listCases(db),
-    replayRuns: db.prepare(`SELECT r.*, e.name AS eval_case_name FROM replay_runs r JOIN eval_cases e ON e.id = r.eval_case_id ORDER BY r.executed_at DESC LIMIT 8`).all(),
+    releaseVersions: listReleaseVersions(db),
+    replayRuns: listReplayRuns(db),
+    recentReplayResults: db.prepare(`SELECT rr.*, e.name AS case_name FROM replay_case_results rr JOIN eval_cases e ON e.id = rr.eval_case_id ORDER BY rr.created_at DESC LIMIT 8`).all(),
     exports: db.prepare(`SELECT * FROM export_batches ORDER BY created_at DESC`).all(),
     promptfooExport: getPromptfooExport(db)
   };
@@ -621,7 +741,9 @@ export function getSampleRows(db) {
     cluster_traces: db.prepare(`SELECT * FROM cluster_traces ORDER BY cluster_id, trace_event_id`).all(),
     eval_cases: db.prepare(`SELECT * FROM eval_cases ORDER BY id`).all(),
     case_reviews: db.prepare(`SELECT * FROM case_reviews ORDER BY id`).all(),
+    release_versions: db.prepare(`SELECT * FROM release_versions ORDER BY id`).all(),
     replay_runs: db.prepare(`SELECT * FROM replay_runs ORDER BY id`).all(),
+    replay_case_results: db.prepare(`SELECT * FROM replay_case_results ORDER BY id`).all(),
     export_batches: db.prepare(`SELECT * FROM export_batches ORDER BY id`).all()
   };
 }

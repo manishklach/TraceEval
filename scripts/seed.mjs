@@ -63,11 +63,20 @@ const caseReviews = [
   ['review-02', 'case-02', 'approved', 'manish', 'Kept as negative hallucination check.', '2026-03-09T16:42:00Z'],
   ['review-03', 'case-03', 'needs_edit', 'support-lead', 'Add explicit fallback wording.', '2026-03-09T16:46:00Z']
 ];
+const releaseVersions = [
+  ['rel-017', 'production', 'prompt:v17', 'gpt-5-mini', 'retriever:v4', 'tools:v6', 'policy:v2', '2026-03-09T15:00:00Z'],
+  ['rel-018', 'production', 'prompt:v18', 'gpt-5-mini', 'retriever:v4', 'tools:v6', 'policy:v2', '2026-03-09T16:00:00Z'],
+  ['rel-019', 'staging', 'prompt:v18', 'gpt-5-mini', 'retriever:v5', 'tools:v7', 'policy:v2', '2026-03-09T16:30:00Z']
+];
 const replayRuns = [
-  ['replay-01', 'case-01', 'prompt:v17+retriever:v4', 'prompt:v18+retriever:v4', 'improved', 0, 1, '2026-03-09T16:44:00Z'],
-  ['replay-02', 'case-02', 'prompt:v17+retriever:v4', 'prompt:v18+retriever:v4', 'regressed', 1, 0, '2026-03-09T16:44:00Z'],
-  ['replay-03', 'case-03', 'prompt:v17+retriever:v4', 'prompt:v18+retriever:v5', 'improved', 0, 1, '2026-03-09T16:49:00Z'],
-  ['replay-04', 'case-04', 'prompt:v17+retriever:v4', 'prompt:v18+retriever:v5', 'watch', 0, 0, '2026-03-09T16:52:00Z']
+  ['replay-run-01', 'rel-017', 'rel-018', 'completed', 'seed', '2026-03-09T16:44:00Z', '2026-03-09T16:44:00Z'],
+  ['replay-run-02', 'rel-018', 'rel-019', 'completed', 'seed', '2026-03-09T16:49:00Z', '2026-03-09T16:49:00Z']
+];
+const replayCaseResults = [
+  ['replay-case-01', 'replay-run-01', 'case-01', 0.72, 0.84, 0.12, 'improved', 'prompt_change', '{"note":"Prompt tightened refund citation behavior."}', '2026-03-09T16:44:00Z'],
+  ['replay-case-02', 'replay-run-01', 'case-02', 0.72, 0.64, -0.08, 'regressed', 'prompt_change', '{"note":"Prompt change hurt country-specific refusal behavior."}', '2026-03-09T16:44:00Z'],
+  ['replay-case-03', 'replay-run-02', 'case-01', 0.76, 0.88, 0.12, 'improved', 'retriever_change', '{"note":"Retriever update improved policy evidence ranking."}', '2026-03-09T16:49:00Z'],
+  ['replay-case-04', 'replay-run-02', 'case-03', 0.76, 0.68, -0.08, 'regressed', 'retriever_change', '{"note":"Retriever update reduced fallback coverage."}', '2026-03-09T16:49:00Z']
 ];
 const exportBatches = [
   ['export-01', 'promptfoo', 'exports/promptfooconfig.refunds.yaml', 2, 'published', '2026-03-09T16:40:00Z'],
@@ -91,8 +100,10 @@ insertMany('INSERT INTO cluster_recompute_runs (id, cluster_id, strategy, status
 insertMany('INSERT INTO cluster_traces (cluster_id, trace_event_id) VALUES (?, ?)', clusterTraces);
 insertMany('INSERT INTO eval_cases (id, cluster_id, status, name, priority, assertion_type, promptfoo_ready, expected_behavior, generated_from, owner, input_text, last_exported_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', evalCases);
 insertMany('INSERT INTO case_reviews (id, eval_case_id, decision, reviewer, notes, created_at) VALUES (?, ?, ?, ?, ?, ?)', caseReviews);
-insertMany('INSERT INTO replay_runs (id, eval_case_id, baseline_version, candidate_version, verdict, regressions_found, improvements_found, executed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', replayRuns);
+insertMany('INSERT INTO release_versions (id, environment, prompt_version, model_name, retriever_version, tool_manifest_version, policy_pack_version, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', releaseVersions);
+insertMany('INSERT INTO replay_runs (id, baseline_version_id, candidate_version_id, status, created_by, created_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?)', replayRuns);
+insertMany('INSERT INTO replay_case_results (id, replay_run_id, eval_case_id, baseline_score, candidate_score, delta, verdict, attribution_label, details_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', replayCaseResults);
 insertMany('INSERT INTO export_batches (id, target_system, target_path, case_count, status, created_at) VALUES (?, ?, ?, ?, ?, ?)', exportBatches);
 
-console.log(`Seeded ${traceEvents.length} traces, ${caseReviews.length} case reviews, and ${evalCases.length} eval cases into data/monitor.db`);
+console.log(`Seeded ${traceEvents.length} traces, ${replayCaseResults.length} replay results, and ${evalCases.length} eval cases into data/monitor.db`);
 db.close();

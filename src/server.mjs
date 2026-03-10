@@ -4,16 +4,20 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   assignClusterOwner,
+  createReplayRun,
   generateCasesFromCluster,
   getCaseDetails,
   getClusterDetails,
   getDashboardSnapshot,
   getPromptfooExport,
+  getReplayDetails,
   getSampleRows,
   ingestSourceEvents,
   initSchema,
   listCases,
   listClusters,
+  listReleaseVersions,
+  listReplayRuns,
   openDb,
   recomputeCluster,
   reviewCase,
@@ -77,6 +81,7 @@ export function buildApp() {
     const generateCasesMatch = url.pathname.match(/^\/api\/clusters\/([^/]+)\/generate-cases$/);
     const caseMatch = url.pathname.match(/^\/api\/cases\/([^/]+)$/);
     const caseReviewMatch = url.pathname.match(/^\/api\/cases\/([^/]+)\/review$/);
+    const replayMatch = url.pathname.match(/^\/api\/replays\/([^/]+)$/);
 
     try {
       if (request.method === 'GET' && url.pathname === '/api/health') return json(response, 200, { ok: true, service: 'traceeval' });
@@ -85,8 +90,11 @@ export function buildApp() {
       if (request.method === 'GET' && url.pathname === '/api/promptfoo-export') return text(response, 200, getPromptfooExport(db), 'text/yaml; charset=utf-8');
       if (request.method === 'GET' && url.pathname === '/api/clusters') return json(response, 200, { items: listClusters(db) });
       if (request.method === 'GET' && url.pathname === '/api/cases') return json(response, 200, { items: listCases(db) });
+      if (request.method === 'GET' && url.pathname === '/api/release-versions') return json(response, 200, { items: listReleaseVersions(db) });
+      if (request.method === 'GET' && url.pathname === '/api/replays') return json(response, 200, { items: listReplayRuns(db) });
       if (request.method === 'GET' && clusterMatch) return json(response, 200, getClusterDetails(db, clusterMatch[1]));
       if (request.method === 'GET' && caseMatch) return json(response, 200, getCaseDetails(db, caseMatch[1]));
+      if (request.method === 'GET' && replayMatch) return json(response, 200, getReplayDetails(db, replayMatch[1]));
 
       if (request.method === 'POST' && recomputeMatch) {
         const payload = await readJsonBody(request);
@@ -109,6 +117,11 @@ export function buildApp() {
       if (request.method === 'PATCH' && caseMatch) {
         const payload = await readJsonBody(request);
         return json(response, 200, updateCase(db, caseMatch[1], payload));
+      }
+      if (request.method === 'POST' && url.pathname === '/api/replays') {
+        const payload = await readJsonBody(request);
+        if (!payload.baselineVersionId || !payload.candidateVersionId) return json(response, 400, { error: 'Body must include baselineVersionId and candidateVersionId' });
+        return json(response, 202, createReplayRun(db, payload));
       }
       if (request.method === 'POST' && url.pathname === '/api/ingest/source-events') {
         const payload = await readJsonBody(request);
