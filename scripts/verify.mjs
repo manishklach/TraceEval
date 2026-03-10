@@ -45,6 +45,7 @@ async function run() {
   assert.equal(rows.release_versions.length, 3);
   assert.equal(rows.replay_runs.length, 2);
   assert.equal(rows.replay_case_results.length, 4);
+  assert.equal(rows.export_batches.length, 3);
   logStep('seeded sample database contains replay versions and results');
 
   const dashboardServer = await startServer({ port: 0 });
@@ -99,7 +100,30 @@ async function run() {
     const exportResponse = await requestText(exportServer.address().port, '/api/promptfoo-export');
     assert.equal(exportResponse.status, 200);
     assert.match(exportResponse.body, /Decline unsupported refund exceptions/);
-    logStep('approved cases still export correctly');
+    const exports = await requestJson(exportServer.address().port, '/api/exports');
+    assert.equal(exports.status, 200);
+    assert.equal(exports.body.items.length, 3);
+
+    const createdExport = await requestJson(exportServer.address().port, '/api/exports/promptfoo', {
+      method: 'POST',
+      body: {
+        targetPath: 'exports/promptfooconfig.approved.yaml',
+        caseIds: ['case-01', 'case-02']
+      }
+    });
+    assert.equal(createdExport.status, 202);
+    assert.equal(createdExport.body.exportBatch.case_count, 2);
+    assert.match(createdExport.body.exportBatch.pr_title, /Export 2 TraceEval cases/);
+
+    const exportDetail = await requestJson(exportServer.address().port, `/api/exports/${createdExport.body.exportBatch.id}`);
+    assert.equal(exportDetail.status, 200);
+    assert.equal(exportDetail.body.caseIds.length, 2);
+
+    const exportContent = await requestText(exportServer.address().port, `/api/exports/${createdExport.body.exportBatch.id}/content`);
+    assert.equal(exportContent.status, 200);
+    assert.match(exportContent.body, /case-01/);
+    assert.match(exportContent.body, /case-02/);
+    logStep('export APIs create deterministic promptfoo batches with stored content');
   } finally { await closeServer(exportServer); }
 
   const ingestServer = await startServer({ port: 0 });

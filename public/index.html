@@ -39,10 +39,13 @@
 
       <section class="layout two-up">
         <section class="panel"><div class="panel-header"><h2>Promptfoo export</h2><p>Only approved cases are exported</p></div><pre id="exportPreview" class="code-block short"></pre></section>
-        <section class="panel"><div class="panel-header"><h2>Connected sources</h2><p>Where failures are mined from</p></div><div id="sourceCards" class="card-grid"></div></section>
+        <section class="panel"><div class="panel-header"><h2>Export history</h2><p>Stored export batches and PR-ready metadata</p></div><div id="exportList" class="stack-list"></div></section>
       </section>
 
-      <section class="panel"><div class="panel-header"><h2>Generated eval cases</h2><p>Cases with status, review history, and replay lineage</p></div><div class="table-wrap"><table><thead><tr><th>Case</th><th>Cluster</th><th>Status</th><th>Priority</th><th>Assertion</th><th>Owner</th></tr></thead><tbody id="evalCasesTable"></tbody></table></div></section>
+      <section class="layout two-up">
+        <section class="panel"><div class="panel-header"><h2>Connected sources</h2><p>Where failures are mined from</p></div><div id="sourceCards" class="card-grid"></div></section>
+        <section class="panel"><div class="panel-header"><h2>Generated eval cases</h2><p>Cases with status, review history, and replay lineage</p></div><div class="table-wrap"><table><thead><tr><th>Case</th><th>Cluster</th><th>Status</th><th>Priority</th><th>Assertion</th><th>Owner</th></tr></thead><tbody id="evalCasesTable"></tbody></table></div></section>
+      </section>
     </main>
     <script type="module" src="/app.js"></script>
   </body>

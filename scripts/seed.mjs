@@ -79,9 +79,9 @@ const replayCaseResults = [
   ['replay-case-04', 'replay-run-02', 'case-03', 0.76, 0.68, -0.08, 'regressed', 'retriever_change', '{"note":"Retriever update reduced fallback coverage."}', '2026-03-09T16:49:00Z']
 ];
 const exportBatches = [
-  ['export-01', 'promptfoo', 'exports/promptfooconfig.refunds.yaml', 2, 'published', '2026-03-09T16:40:00Z'],
-  ['export-02', 'promptfoo', 'exports/promptfooconfig.shipping.yaml', 1, 'published', '2026-03-09T16:45:00Z'],
-  ['export-03', 'promptfoo', 'exports/promptfooconfig.billing.yaml', 1, 'draft', '2026-03-09T16:53:00Z']
+  ['export-01', 'promptfoo', 'exports/promptfooconfig.refunds.yaml', 2, 'published', 'description: Trace-derived eval pack\n# refunds export', '["case-01","case-02"]', 'Export refund cases', 'Add approved refund cases to promptfoo.', '2026-03-09T16:40:00Z'],
+  ['export-02', 'promptfoo', 'exports/promptfooconfig.shipping.yaml', 1, 'published', 'description: Trace-derived eval pack\n# shipping export', '["case-03"]', 'Export shipping case', 'Add approved shipping fallback case to promptfoo.', '2026-03-09T16:45:00Z'],
+  ['export-03', 'promptfoo', 'exports/promptfooconfig.billing.yaml', 1, 'draft', 'description: Trace-derived eval pack\n# billing export', '["case-04"]', 'Export billing case', 'Draft billing freshness case for promptfoo.', '2026-03-09T16:53:00Z']
 ];
 
 const insertMany = (sql, rows) => {
@@ -103,7 +103,7 @@ insertMany('INSERT INTO case_reviews (id, eval_case_id, decision, reviewer, note
 insertMany('INSERT INTO release_versions (id, environment, prompt_version, model_name, retriever_version, tool_manifest_version, policy_pack_version, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', releaseVersions);
 insertMany('INSERT INTO replay_runs (id, baseline_version_id, candidate_version_id, status, created_by, created_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?)', replayRuns);
 insertMany('INSERT INTO replay_case_results (id, replay_run_id, eval_case_id, baseline_score, candidate_score, delta, verdict, attribution_label, details_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', replayCaseResults);
-insertMany('INSERT INTO export_batches (id, target_system, target_path, case_count, status, created_at) VALUES (?, ?, ?, ?, ?, ?)', exportBatches);
+insertMany('INSERT INTO export_batches (id, target_system, target_path, case_count, status, content, case_ids_json, pr_title, pr_body, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', exportBatches);
 
 console.log(`Seeded ${traceEvents.length} traces, ${replayCaseResults.length} replay results, and ${evalCases.length} eval cases into data/monitor.db`);
 db.close();

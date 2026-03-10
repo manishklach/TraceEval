@@ -314,6 +314,10 @@ export function initSchema(db) {
       target_path TEXT NOT NULL,
       case_count INTEGER NOT NULL,
       status TEXT NOT NULL,
+      content TEXT NOT NULL DEFAULT '',
+      case_ids_json TEXT NOT NULL DEFAULT '[]',
+      pr_title TEXT,
+      pr_body TEXT,
       created_at TEXT NOT NULL
     );
   `);
@@ -666,18 +670,28 @@ export function createReplayRun(db, payload) {
   return getReplayDetails(db, replayRunId);
 }
 export function getPromptfooExport(db) {
-  const cases = db.prepare(`
-    SELECT e.id, e.name, e.assertion_type, e.expected_behavior, c.title AS cluster_title
+  return buildPromptfooExportContent(db);
+}
+
+function selectExportableCases(db, caseIds = null) {
+  const placeholders = Array.isArray(caseIds) && caseIds.length ? `AND e.id IN (${caseIds.map(() => '?').join(', ')})` : '';
+  return db.prepare(`
+    SELECT e.id, e.name, e.assertion_type, e.expected_behavior, e.priority, e.owner, e.status, c.title AS cluster_title
     FROM eval_cases e
     JOIN failure_clusters c ON c.id = e.cluster_id
-    WHERE e.promptfoo_ready = 1 AND e.status IN ('approved', 'exported')
+    WHERE e.promptfoo_ready = 1 AND e.status IN ('approved', 'exported') ${placeholders}
     ORDER BY CASE e.priority WHEN 'p0' THEN 1 WHEN 'p1' THEN 2 ELSE 3 END, e.id
-  `).all();
+  `).all(...(Array.isArray(caseIds) && caseIds.length ? caseIds : []));
+}
 
+function buildPromptfooExportContent(db, caseIds = null) {
+  const cases = selectExportableCases(db, caseIds);
   const tests = cases.map((item) => `  - description: "${escapeYaml(item.name)}"
     metadata:
       caseId: "${item.id}"
       cluster: "${escapeYaml(item.cluster_title)}"
+      owner: "${escapeYaml(item.owner)}"
+      priority: "${item.priority}"
     vars:
       incident: "${escapeYaml(item.expected_behavior)}"
     assert:
@@ -690,6 +704,73 @@ providers:
   - openai:gpt-5-mini
 tests:
 ${tests}`;
+}
+
+function buildExportPrBody(items, targetPath) {
+  const lines = items.map((item) => `- ${item.id}: ${item.name} (${item.priority}, ${item.cluster_title})`);
+  return `Add TraceEval-generated promptfoo pack for ${targetPath}\n\nIncluded cases:\n${lines.join('\n')}`;
+}
+
+export function createExportBatch(db, payload) {
+  const targetSystem = payload.targetSystem || 'promptfoo';
+  const targetPath = payload.targetPath || `exports/promptfooconfig.${Date.now()}.yaml`;
+  const selectedCases = selectExportableCases(db, payload.caseIds || null);
+  if (!selectedCases.length) {
+    throw new Error('No approved exportable cases selected');
+  }
+
+  const exportId = `export-${Date.now()}`;
+  const createdAt = nowIso();
+  const content = buildPromptfooExportContent(db, selectedCases.map((item) => item.id));
+  const prTitle = `Export ${selectedCases.length} TraceEval cases to ${targetPath}`;
+  const prBody = buildExportPrBody(selectedCases, targetPath);
+
+  db.exec('BEGIN');
+  try {
+    db.prepare(`
+      INSERT INTO export_batches (id, target_system, target_path, case_count, status, content, case_ids_json, pr_title, pr_body, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      exportId,
+      targetSystem,
+      targetPath,
+      selectedCases.length,
+      payload.status || 'draft',
+      content,
+      JSON.stringify(selectedCases.map((item) => item.id)),
+      prTitle,
+      prBody,
+      createdAt
+    );
+
+    db.prepare(`
+      UPDATE eval_cases
+      SET status = 'exported', last_exported_at = ?, updated_at = ?
+      WHERE id = ?
+    `);
+    for (const item of selectedCases) {
+      db.prepare(`UPDATE eval_cases SET status = 'exported', last_exported_at = ?, updated_at = ? WHERE id = ?`).run(createdAt, createdAt, item.id);
+    }
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+
+  return getExportBatch(db, exportId);
+}
+
+export function listExportBatches(db) {
+  return db.prepare(`SELECT * FROM export_batches ORDER BY created_at DESC`).all();
+}
+
+export function getExportBatch(db, exportId) {
+  const item = db.prepare(`SELECT * FROM export_batches WHERE id = ?`).get(exportId);
+  if (!item) throw new Error(`Export batch not found: ${exportId}`);
+  return {
+    exportBatch: item,
+    caseIds: JSON.parse(item.case_ids_json || '[]')
+  };
 }
 
 export function getDashboardSnapshot(db) {
@@ -724,7 +805,7 @@ export function getDashboardSnapshot(db) {
     releaseVersions: listReleaseVersions(db),
     replayRuns: listReplayRuns(db),
     recentReplayResults: db.prepare(`SELECT rr.*, e.name AS case_name FROM replay_case_results rr JOIN eval_cases e ON e.id = rr.eval_case_id ORDER BY rr.created_at DESC LIMIT 8`).all(),
-    exports: db.prepare(`SELECT * FROM export_batches ORDER BY created_at DESC`).all(),
+    exports: listExportBatches(db),
     promptfooExport: getPromptfooExport(db)
   };
 }
